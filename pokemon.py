@@ -1,79 +1,94 @@
 import requests
+import time
 
-def get_pokemon_data(name):
-    """Fetch Pokémon data from PokeAPI."""
-    url = f"https://pokeapi.co/api/v2/pokemon/{name.lower()}"
+def calculate_hp(base_hp):
+    return ((2 * base_hp) * 100 // 100) + 100 + 10
+
+def calculate_stat(base_stat):
+    return (2 * base_stat * 100 // 100) + 5
+
+def get_pokemon_data(pokemon_name):
+    url = f"https://pokeapi.co/api/v2/pokemon/{pokemon_name.lower()}"
     response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
+    
+    if response.status_code != 200:
+        print(f"Failed to fetch data for {pokemon_name}")
+        return None
+    
+    data = response.json()
+    stats = {stat['stat']['name']: stat['base_stat'] for stat in data['stats']}
+    
+    return {
+        'name': pokemon_name.capitalize(),
+        'hp': calculate_hp(stats['hp']),
+        'attack': calculate_stat(stats['attack']),
+        'defense': calculate_stat(stats['defense']),
+        'speed': calculate_stat(stats['speed'])
+    }
+
+def display_battle_start(pokemon1, pokemon2):
+    print("\n=== Pokémon Battle Start! ===")
+    print(f"{pokemon1['name']} vs {pokemon2['name']}")
+    print(f"{pokemon1['name']} HP: {pokemon1['hp']}")
+    print(f"{pokemon2['name']} HP: {pokemon2['hp']}\n")
+
+def calculate_damage(attacker, defender):
+    # Simple damage calculation: (Attack / Defense) * 10
+    damage = (attacker['attack'] / defender['defense']) * 10
+    return max(1, int(damage))  # Minimum 1 damage
+
+def battle_simulation(pokemon1_name, pokemon2_name):
+    # Step 1: Fetch Pokémon Data
+    pokemon1 = get_pokemon_data(pokemon1_name)
+    pokemon2 = get_pokemon_data(pokemon2_name)
+    
+    if not pokemon1 or not pokemon2:
+        return
+    
+    # Step 2: Calculate Initial Stats (already done in get_pokemon_data)
+    
+    # Step 3: Initialize Battle Display
+    display_battle_start(pokemon1, pokemon2)
+    
+    # Step 4: Determine First Attacker
+    if pokemon1['speed'] >= pokemon2['speed']:
+        attacker, defender = pokemon1, pokemon2
     else:
-        raise Exception(f"Failed to get data for {name}")
-
-def calculate_stat(base, level):
-    """Calculate general stat (attack/defense/speed)."""
-    return int(((2 * base) * level / 100) + 5)
-
-def calculate_hp(base, level):
-    """Calculate HP."""
-    return int(((2 * base) * level / 100) + level + 10)
-
-def extract_stats(pokemon_json, level):
-    stats = {}
-    for stat in pokemon_json["stats"]:
-        name = stat["stat"]["name"]
-        base = stat["base_stat"]
-        if name == "hp":
-            stats["hp"] = calculate_hp(base, level)
-        elif name == "attack":
-            stats["attack"] = calculate_stat(base, level)
-        elif name == "defense":
-            stats["defense"] = calculate_stat(base, level)
-        elif name == "speed":
-            stats["speed"] = calculate_stat(base, level)
-    return stats
-
-def simulate_battle(name1, name2, level=50):
-    print(f"\n⚔️ Battle Start: {name1} vs {name2} at level {level} ⚔️")
-
-    poke1_data = get_pokemon_data(name1)
-    poke2_data = get_pokemon_data(name2)
-
-    stats1 = extract_stats(poke1_data, level)
-    stats2 = extract_stats(poke2_data, level)
-
-    print(f"{name1} stats: {stats1}")
-    print(f"{name2} stats: {stats2}")
-
-    hp1, hp2 = stats1["hp"], stats2["hp"]
-
-    if stats1["speed"] > stats2["speed"]:
-        attacker, defender = name1, name2
-        att_stats, def_stats = stats1, stats2
-        att_hp, def_hp = hp1, hp2
-    else:
-        attacker, defender = name2, name1
-        att_stats, def_stats = stats2, stats1
-        att_hp, def_hp = hp2, hp1
-
-    print(f"\n🕐 {attacker} is faster and attacks first!\n")
-
+        attacker, defender = pokemon2, pokemon1
+    
+    # Step 5: Battle Loop
     round_num = 1
-    while att_hp > 0 and def_hp > 0:
-        print(f"🔁 Round {round_num}")
-        damage = max(1, att_stats["attack"] - def_stats["defense"])
-        def_hp -= damage
-        print(f"{attacker} attacks {defender} for {damage} damage.")
-        print(f"{defender} HP left: {max(def_hp, 0)}\n")
-
-        if def_hp <= 0:
-            print(f"🏆 {defender} fainted. {attacker} wins in {round_num} rounds!")
-            return
-
-        # Swap attacker and defender
+    while pokemon1['hp'] > 0 and pokemon2['hp'] > 0:
+        print(f"Round {round_num}")
+        
+        # Calculate and deal damage
+        damage = calculate_damage(attacker, defender)
+        defender['hp'] -= damage
+        
+        # Display attack results
+        print(f"{attacker['name']} attacks {defender['name']} for {damage} damage!")
+        
+        # Check if defender fainted
+        if defender['hp'] <= 0:
+            defender['hp'] = 0
+            print(f"{defender['name']} has fainted!")
+            break
+        
+        # Display remaining HP
+        print(f"{pokemon1['name']} HP: {pokemon1['hp']}")
+        print(f"{pokemon2['name']} HP: {pokemon2['hp']}\n")
+        
+        # Swap roles
         attacker, defender = defender, attacker
-        att_stats, def_stats = def_stats, att_stats
-        att_hp, def_hp = def_hp, att_hp
         round_num += 1
+        time.sleep(1)  # Add delay for readability
+    
+    # Step 6: End Battle
+    winner = pokemon1 if pokemon1['hp'] > 0 else pokemon2
+    print("\n=== Battle Ended! ===")
+    print(f"{winner['name']} wins!")
+    print(f"Final HP: {winner['hp']}")
 
-# Example run (can be replaced with input() for custom battles)
-simulate_battle("pikachu", "bulbasaur", level=50)
+# Example usage
+if __name__ == "__main__":
+    battle_simulation("pikachu", "charmander")
